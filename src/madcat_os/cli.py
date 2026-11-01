@@ -4,6 +4,8 @@ madcat mcp serve [--transport stdio|http] [--bind HOST:PORT] [--token T]
 madcat mcp list
 madcat mcp call <tool> ['<json>']
 madcat status
+madcat claude hooks pre-tool <name> [--server S]
+madcat claude hooks session-start <name> [--cart TAG]
 """
 
 from __future__ import annotations
@@ -24,7 +26,6 @@ from rich.table import Table
 
 from madcat_os import __version__
 from madcat_os.config import SERVER_NAME, Settings, settings
-from madcat_os.server import build_server
 
 app = typer.Typer(
     name="madcat",
@@ -34,6 +35,13 @@ app = typer.Typer(
 )
 mcp_app = typer.Typer(help="MCP server and tool registry", no_args_is_help=True)
 app.add_typer(mcp_app, name="mcp")
+claude_app = typer.Typer(help="Claude Code integration", no_args_is_help=True)
+hooks_app = typer.Typer(
+    help="Hook handlers for ~/.claude/settings.json (event JSON on stdin, hook JSON on stdout)",
+    no_args_is_help=True,
+)
+claude_app.add_typer(hooks_app, name="hooks")
+app.add_typer(claude_app, name="claude")
 
 # stdout is the MCP wire on stdio; everything human goes to stderr.
 console = Console(stderr=True)
@@ -68,6 +76,8 @@ def _root(
 @app.command()
 def status() -> None:
     """Show effective configuration and tool count."""
+    from madcat_os.server import build_server
+
     cfg = settings()
     mcp = build_server(cfg)
     tools = asyncio.run(mcp.list_tools())
@@ -87,6 +97,8 @@ def mcp_list(
     as_json: Annotated[bool, typer.Option("--json", help="Machine-readable output")] = False,
 ) -> None:
     """Tool inventory."""
+    from madcat_os.server import build_server
+
     mcp = build_server()
     tools = asyncio.run(mcp.list_tools())
     if as_json:
@@ -106,6 +118,8 @@ def mcp_call(
     args: Annotated[str, typer.Argument(help="JSON object of arguments")] = "{}",
 ) -> None:
     """Run one tool locally, no MCP client needed."""
+    from madcat_os.server import build_server
+
     try:
         parsed = json.loads(args)
     except json.JSONDecodeError as e:
@@ -147,6 +161,8 @@ def mcp_serve(
     ] = None,
 ) -> None:
     """Run the MCP server."""
+    from madcat_os.server import build_server
+
     overrides: dict = {}
     if bind:
         host, _, port = bind.rpartition(":")
@@ -179,6 +195,40 @@ def mcp_serve(
         )
     )
     serve_http(mcp, cfg)
+
+
+@hooks_app.command("pre-tool")
+def hooks_pre_tool(
+    name: Annotated[str, typer.Argument(help="Named hook to run")],
+    server: Annotated[
+        str | None,
+        typer.Option(
+            "--server",
+            help="MCP server name the madcat tools are registered under, when it is not derivable "
+            "from the tool name ([claude].mcp_server_name)",
+        ),
+    ] = None,
+) -> None:
+    """PreToolUse handler. Names: inject_session_id"""
+    from madcat_os import claude_hooks
+
+    claude_hooks.pre_tool(name, server)
+
+
+@hooks_app.command("session-start")
+def hooks_session_start(
+    name: Annotated[str, typer.Argument(help="Named hook to run")],
+    cart: Annotated[
+        str | None,
+        typer.Option(
+            "--cart", help="Persona cart tag to boot with instead of the active one in tts-state.toml"
+        ),
+    ] = None,
+) -> None:
+    """SessionStart handler. Names: welcome (boot prompt from the active persona cart)"""
+    from madcat_os import claude_hooks
+
+    claude_hooks.session_start(name, cart)
 
 
 def main() -> None:

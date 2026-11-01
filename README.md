@@ -5,6 +5,7 @@ MADCAT MCP server and command line in Python. The installed binary is `madcat`; 
 - `madcat mcp serve` — MCP over **stdio** (default) or **Streamable HTTP** at `/mcp`
 - `madcat mcp list` / `mcp call <tool> '<json>'` — drive the tool registry from the shell
 - `madcat status` — effective config and tool count
+- `madcat claude hooks pre-tool inject_session_id` / `session-start welcome` — Claude Code hooks
 
 Functionality is being moved here from the Rust `madcat` binary; command shapes match it.
 
@@ -36,6 +37,23 @@ http:
   "headers": { "Authorization": "Bearer ${MADCAT_MCP_TOKEN}" } } } }
 ```
 
+Hooks, in `~/.claude/settings.json` (event JSON on stdin, hook output on stdout, always exit 0):
+
+```json
+"hooks": {
+  "PreToolUse": [ { "matcher": "", "hooks": [
+    { "type": "command", "command": "madcat claude hooks pre-tool inject_session_id", "timeout": 5 } ] } ],
+  "SessionStart": [ { "hooks": [
+    { "type": "command", "command": "madcat claude hooks session-start welcome", "timeout": 5 } ] } ] }
+```
+
+`inject_session_id` records the session in `~/.claude/current-session-id` and `current-session.json`
+(`MADCAT_CLAUDE_STATE_DIR`, `[claude].state_dir`) and adds `session_id` to madcat tool calls
+(`--server` / `MADCAT_CLAUDE_MCP_SERVER` when the tool name does not identify madcat). `welcome`
+prints the boot prompt for the active persona cart (`~/.local/share/madcat/tts-state.toml` →
+`~/.config/madcat/carts/<tag>.toml`); `MADCAT_CLAUDE_WELCOME`, `[claude].welcome` or
+`$CLAUDE_PLUGIN_DATA/welcome.md` replaces it.
+
 ## Configuration
 
 Environment, prefix `MADCAT_MCP_` (or a `.env` file): `HOST` (127.0.0.1), `PORT` (4097), `TOKEN`, `LOG_LEVEL`.
@@ -53,7 +71,9 @@ Create `src/madcat_os/tools/<module>.py` with `register(mcp: MCPServer)` and `@m
 src/madcat_os/
   cli.py        Typer app: status, mcp list|call|serve
   server.py     build_server(), HTTP app with bearer auth + /health, stdio/http runners
-  config.py     Settings (pydantic-settings)
+  config.py     Settings (pydantic-settings); hook/cart getters over ~/.config/madcat/config.toml
+  claude_hooks.py  Claude Code PreToolUse / SessionStart handlers
+  cart.py       persona carts: tts-state.toml and carts/*.toml
   tools/        registry; one module per tool family
 tests/
 justfile
