@@ -1,6 +1,6 @@
 [project]
 name = "madcat-os"
-version = "0.1.3"
+version = "0.1.4"
 description = "MADCAT MCP server and CLI — stdio and Streamable HTTP transports, Typer command line"
 readme = "README.md"
 license = "MIT"
