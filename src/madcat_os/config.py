@@ -25,8 +25,20 @@ SERVER_NAME = "madcat"
 log = logging.getLogger("madcat_os")
 
 
+def _dotenv() -> Path | None:
+    """``.env`` in the working directory, only when it is a regular file. Claude Code starts the
+    server in whatever directory the session is in, and pydantic-settings also reads FIFOs: a named
+    pipe ``.env`` (1Password mounts one) blocks until something writes to it, so the server never
+    gets to the MCP handshake."""
+    path = Path(".env")
+    return path if path.is_file() else None
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="MADCAT_MCP_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="MADCAT_MCP_", extra="ignore")
+
+    def __init__(self, **values: Any) -> None:
+        super().__init__(_env_file=_dotenv(), **values)
 
     host: str = Field(default="127.0.0.1", description="HTTP bind address")
     port: int = Field(default=4097, description="HTTP bind port")
