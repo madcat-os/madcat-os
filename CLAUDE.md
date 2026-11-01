@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 madcat-os is the Python port of the Rust `madcat` MCP server (`~/Projects/madcat`). It installs a
 binary named `madcat` whose command shapes match the Rust one. Features move over from the Rust repo
-one chunk at a time: the Claude Code hooks are done, and EEMS memory is next.
+one chunk at a time: the Claude Code hooks and the EEMS memory tools are done.
 
 ## Commands
 
@@ -68,21 +68,29 @@ BTreeMap-backed TOML tables.
   `tts_state_path`) are getters in `config.py`. They read the Rust env names and
   `~/.config/madcat/config.toml`, not `Settings`.
 
-### Memory (EEMS), next
+### Memory (EEMS) (ported, single DSN)
 
-Rust sources: `src/tools/memory.rs` (tool args and handlers), `src/memory.rs` (store selection),
-`src/madcat_memory/` (vendored store: `pg.rs`, `config.rs`, `embed.rs`, `types.rs`,
-`migrations/pg_001_init.sql`; `store.rs`/`schema.sql` are the SQLite variant), and
-`doctrines/eems-recall-hygiene.md`.
+`memory/store.py` (`PgStore`) is a port of the Rust `src/madcat_memory/pg.rs`, and
+`tools/memory.py` is a port of `src/tools/memory.rs`. Both servers share one Postgres + pgvector
+database, so keep the SQL, the schema (`memory/pg_001_init.sql` is a verbatim copy of the Rust
+migration, code-index tables included) and the JSON output in step with Rust. To check, compare
+`memory_list` / `memory_get` / `memory_recall` text from this server with
+`~/Projects/madcat/target/release/madcat mcp call` on the same DSN. Live tests:
+`EEMS_PG_DSN=… uv run pytest tests/test_memory_pg.py` (stub embedder, throwaway `test-<ulid>`
+namespace).
 
-- Tools: `memory_store`, `memory_recall`, `memory_get`, `memory_forget`, `memory_classify`,
-  `memory_list`, `memory_link`, `memory_graph`.
-- Backend in production is Postgres + pgvector (`PgStore`). Recall is hybrid: pgvector cosine
-  (`<=>`) and tsvector `ts_rank`, fused with RRF (`1 / (60 + rank)`) in SQL. IDs are ULIDs.
-- Embeddings: Ollama `/api/embed` by default (`bge-m3`, 1024 dims), OpenAI as the alternative.
-- `core` classification is immutable; `memory_classify` promotes to it irreversibly.
-- Store selection: single DSN (`[database].dsn` / `EEMS_PG_DSN`), or dual DSN per agent role
-  (`EEMS_DSN_CORE` + `EEMS_DSN_DOUBLE`). OAuth connector callers get a per-user database
-  `{db_name}_{db}` (`[database].user_dsn` / `user_template`), created on first use.
-- Rust reads `~/.config/madcat/config.toml` (`[database]`, `[embedding]`); here those settings
-  belong in `Settings`.
+- Only `EEMS_PG_DSN` / `[database].dsn` is supported. Rust's dual-DSN (`EEMS_DSN_CORE` +
+  `EEMS_DSN_DOUBLE`, chosen by agent role) and per-user `{db_name}_{db}` databases for OAuth
+  callers need caller identity this server doesn't have yet.
+- Output parity details:
+  - Each tool returns one `CallToolResult` with a single text block:
+    `json.dumps(indent=2, sort_keys=True, ensure_ascii=False)`. That is serde's pretty print with
+    sorted keys; returning a list would make the SDK split it into one block per item.
+  - Errors are `{"error": …}` with `isError`, carrying Rust's messages.
+  - `real` columns are selected `::float8`, so they print as Rust's f32 widened to f64.
+- Rust behaviour kept as is: no validation of classification or relation, no enforced `core`
+  immutability, dedup on (namespace, subject, content hash) before embedding, depth-first stack
+  order in `graph` (`traverse`, unit-tested without Postgres).
+- The store is synchronous (psycopg pool, not tied to an event loop); tools call it through
+  `anyio.to_thread`. Embedding settings come from `[embedding]` (`provider`, `url`, `model`,
+  `api_key` → `OPENAI_API_KEY`) via `config.embedding_config()`.

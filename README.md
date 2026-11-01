@@ -57,6 +57,12 @@ prints the boot prompt for the active persona cart (`~/.local/share/madcat/tts-s
 ## Configuration
 
 Environment, prefix `MADCAT_MCP_` (or a `.env` file): `HOST` (127.0.0.1), `PORT` (4097), `TOKEN`, `LOG_LEVEL`.
+
+The `memory_*` tools use the same Postgres + pgvector database and `~/.config/madcat/config.toml`
+as the Rust madcat: `EEMS_PG_DSN` or `[database].dsn`, and `[embedding]` with `provider`
+(`ollama` or `openai`), `url` (required), `model` and `api_key` (falls back to `OPENAI_API_KEY`).
+The schema is created on first use if missing; pgvector must already be installed or creatable by
+the role.
 `--bind` and `--token` on `mcp serve` override.
 
 ## Adding a tool
@@ -74,6 +80,7 @@ src/madcat_os/
   config.py     Settings (pydantic-settings); hook/cart getters over ~/.config/madcat/config.toml
   claude_hooks.py  Claude Code PreToolUse / SessionStart handlers
   cart.py       persona carts: tts-state.toml and carts/*.toml
+  memory/       EEMS store (Postgres + pgvector, hybrid recall), embedders, schema
   tools/        registry; one module per tool family
 tests/
 justfile

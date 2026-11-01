@@ -2,8 +2,9 @@
 
 Server settings come from the environment (prefix MADCAT_MCP_) or a .env file; tools never read
 os.environ directly, they take a Settings instance. The Claude Code hooks and persona carts share
-``~/.config/madcat/config.toml`` and their env names with the Rust madcat, so their getters live
-here too, with the same precedence: env var → config.toml → default.
+``~/.config/madcat/config.toml`` and their env names with the Rust madcat, as do the EEMS memory
+store and its embedder, so their getters live here too, with the same precedence: env var →
+config.toml → default.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 import logging
 import os
 import tomllib
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -108,3 +110,28 @@ def claude_welcome_override() -> Path | None:
     else:
         return None
     return path if path.is_file() else None
+
+
+def eems_pg_dsn() -> str | None:
+    """Postgres DSN for EEMS memory: ``EEMS_PG_DSN`` → ``[database].dsn``."""
+    return _env("EEMS_PG_DSN") or get_str("database.dsn")
+
+
+@dataclass(frozen=True)
+class EmbeddingConfig:
+    """``[embedding]`` in config.toml. ``provider = "openai"`` picks the OpenAI-compatible API,
+    anything else Ollama. ``api_key`` falls back to ``OPENAI_API_KEY``."""
+
+    provider: str = "ollama"
+    url: str | None = None
+    model: str | None = None
+    api_key: str | None = None
+
+
+def embedding_config() -> EmbeddingConfig:
+    return EmbeddingConfig(
+        provider="openai" if get_str("embedding.provider") == "openai" else "ollama",
+        url=get_str("embedding.url"),
+        model=get_str("embedding.model"),
+        api_key=get_str("embedding.api_key") or _env("OPENAI_API_KEY"),
+    )

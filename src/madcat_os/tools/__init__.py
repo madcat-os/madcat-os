@@ -10,9 +10,9 @@ from collections.abc import Callable
 
 from mcp.server.mcpserver import MCPServer
 
-from . import system
+from . import memory, system
 
-MODULES: tuple[Callable[[MCPServer], None], ...] = (system.register,)
+MODULES: tuple[Callable[[MCPServer], None], ...] = (system.register, memory.register)
 
 
 def register_all(mcp: MCPServer) -> None:
