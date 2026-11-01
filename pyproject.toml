@@ -3,7 +3,7 @@ name = "madcat-os"
 version = "0.1.4"
 description = "MADCAT MCP server and CLI — stdio and Streamable HTTP transports, Typer command line"
 readme = "README.md"
-license = "MIT"
+license = "BUSL-1.1"
 requires-python = ">=3.13"
 authors = [{ name = "Adam Ladachowski" }]
 dependencies = [
