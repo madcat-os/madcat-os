@@ -1,0 +1,10 @@
+.git
+.venv
+.pytest_cache
+.ruff_cache
+dist
+tests
+.kamal
+config
+opencode.json
+**/__pycache__

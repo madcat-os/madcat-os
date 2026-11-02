@@ -34,6 +34,12 @@ def test_embedding_config(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk")
     cfg = embedding_config()
     assert (cfg.provider, cfg.url, cfg.model, cfg.api_key) == ("openai", "http://e#x", "m", "sk")
+    monkeypatch.setenv("MADCAT_EMBED_PROVIDER", "ollama")
+    monkeypatch.setenv("MADCAT_EMBED_URL", "http://env:11434")
+    monkeypatch.setenv("MADCAT_EMBED_MODEL", "bge-m3")
+    monkeypatch.setenv("MADCAT_EMBED_API_KEY", "ek")
+    cfg = embedding_config()
+    assert (cfg.provider, cfg.url, cfg.model, cfg.api_key) == ("ollama", "http://env:11434", "bge-m3", "ek")
 
 
 @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs named pipes")

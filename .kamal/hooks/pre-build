@@ -1,0 +1,23 @@
+#!/usr/bin/env sh
+# Refuse to build from a dirty or unpushed tree: the image tag is the git SHA,
+# so what runs on forge must be what is on the remote.
+set -eu
+
+if [ -n "$(git status --porcelain)" ]; then
+  echo "pre-build: git checkout is not clean, aborting" >&2
+  git status --porcelain >&2
+  exit 1
+fi
+
+branch=$(git branch --show-current)
+remote=$(git remote | head -n 1)
+if [ -z "$branch" ] || [ -z "$remote" ]; then
+  echo "pre-build: need a branch and a remote" >&2
+  exit 1
+fi
+
+remote_head=$(git ls-remote "$remote" "refs/heads/$branch" | cut -f1)
+if [ "$KAMAL_VERSION" != "$remote_head" ]; then
+  echo "pre-build: $KAMAL_VERSION is not the remote head of $branch ($remote_head); push first" >&2
+  exit 1
+fi

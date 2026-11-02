@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+# Probe the public health endpoint once the proxy has switched over.
+url="https://mcp.madcat-os.com/health"
+block="mcp.madcat-os.com"
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url" || true)
+echo "post-deploy: $KAMAL_PERFORMER deployed $KAMAL_VERSION in ${KAMAL_RUNTIME}s — $url -> $code"
+[ "$code" = "200" ] || echo "post-deploy: WARNING public probe did not return 200 (check the Caddy block for $block)" >&2

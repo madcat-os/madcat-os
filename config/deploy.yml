@@ -1,0 +1,85 @@
+# madcat-os v2 — Kamal 2 deploy of the MCP server to forge, in place of the Rust
+# madcat-mcp. Same service name and host, so deploying either repo replaces the other.
+#
+#   kamal deploy           every deploy (push the branch first; the pre-build hook checks)
+#   kamal logs             follow server logs
+#   kamal tools            tool inventory inside the running container
+#   kamal health           /health from inside the container
+#
+# Topology on forge: Caddy owns :80/:443 and terminates TLS, then proxies
+# mcp.madcat-os.com to kamal-proxy on 127.0.0.1:8480, which routes by Host
+# header to this container (shared with madcat-web, madcat-tts and pum).
+#
+# Clients: OAuth only. Add https://mcp.madcat-os.com/mcp as a custom connector in
+# Claude; madcat-web runs the sign-in. Each account's tools run against the
+# database madcat-web provisions for it (the db_url in token introspection),
+# reached on forge's LAN address from the `kamal` bridge.
+
+service: madcat-mcp
+image: madcat-os/madcat-os
+
+servers:
+  web:
+    hosts:
+      - 192.168.88.10
+
+ssh:
+  user: kamal
+  # net-ssh ignores OpenSSH `Match` blocks (forge selects this key that way),
+  # so name the identity explicitly. Missing files are skipped.
+  keys:
+    - ~/.ssh/madcat
+
+proxy:
+  ssl: false                  # Caddy does TLS
+  host: mcp.madcat-os.com
+  app_port: 4097
+  forward_headers: true
+  # Recall waits on the embedding endpoint; give slow calls room.
+  response_timeout: 300
+  healthcheck:
+    path: /health
+    interval: 3
+    timeout: 3
+  # Boot options of the shared kamal-proxy container. One proxy per host, so
+  # this block must stay identical to madcat-web's and pum's.
+  run:
+    http_port: 8480
+    https_port: 8443
+    bind_ips:
+      - 127.0.0.1
+
+registry:
+  server: git.saiden.dev
+  username: madcat
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+builder:
+  arch: amd64
+  # Build on forge's amd64 engine; the Macs are arm64 and emulation is slow.
+  remote: ssh://kamal@192.168.88.10
+  local: false
+
+env:
+  clear:
+    MADCAT_HOST: 0.0.0.0
+    MADCAT_PORT: 4097
+    MADCAT_LOG_LEVEL: info
+    # madcat-web is the authorization server; this server checks tokens by
+    # introspection and lets only these accounts in (`*` = any madcat-web account).
+    MADCAT_PUBLIC_URL: https://mcp.madcat-os.com
+    MADCAT_OAUTH_ISSUER: https://madcat-os.com
+    MADCAT_OAUTH_ALLOWED: adam.ladachowski@gmail.com,aladac@saiden.dev
+    MADCAT_EMBED_PROVIDER: openai
+    MADCAT_EMBED_URL: http://192.168.88.10:11434
+    MADCAT_EMBED_MODEL: bge-m3
+  secret:
+    - MADCAT_OAUTH_INTROSPECT_SECRET   # shared with madcat-web (OAUTH_INTROSPECT_SECRET)
+    - MADCAT_EMBED_API_KEY
+
+aliases:
+  logs: app logs -f
+  shell: app exec --interactive --reuse "bash"
+  tools: app exec --reuse "madcat mcp list"
+  health: app exec --reuse "python -c \"import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:4097/health').read().decode())\""

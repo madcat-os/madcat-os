@@ -157,8 +157,8 @@ def settings() -> Settings:
 
 @dataclass(frozen=True)
 class EmbeddingConfig:
-    """``[embedding]`` in config.toml. ``provider = "openai"`` picks the OpenAI-compatible API,
-    anything else Ollama. ``api_key`` falls back to ``OPENAI_API_KEY``."""
+    """``MADCAT_EMBED_*`` or ``[embedding]`` in config.toml. ``provider = "openai"`` picks the
+    OpenAI-compatible API, anything else Ollama. ``api_key`` falls back to ``OPENAI_API_KEY``."""
 
     provider: str = "ollama"
     url: str | None = None
@@ -168,12 +168,12 @@ class EmbeddingConfig:
 
 def embedding_config() -> EmbeddingConfig:
     def s(key: str) -> str | None:
-        v = toml_get(f"embedding.{key}")
+        v = os.environ.get(f"MADCAT_EMBED_{key.upper()}") or toml_get(f"embedding.{key}")
         return v if isinstance(v, str) and v else None
 
     return EmbeddingConfig(
         provider="openai" if s("provider") == "openai" else "ollama",
-        url=os.environ.get("MADCAT_EMBED_URL") or s("url"),
+        url=s("url"),
         model=s("model"),
         api_key=s("api_key") or os.environ.get("OPENAI_API_KEY") or None,
     )
