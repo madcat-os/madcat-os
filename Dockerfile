@@ -3,7 +3,8 @@
 # Built by Kamal on forge (amd64); see config/deploy.yml.
 
 FROM python:3.13-slim-bookworm AS build
-COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /usr/local/bin/uv
+# uv from PyPI: forge's builder holds stale ghcr.io credentials, which break COPY --from=ghcr.io/….
+RUN pip install --no-cache-dir uv==0.13.6
 # The venv must point at /usr/local/bin/python3.13, which the runtime image has too.
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never UV_PYTHON=/usr/local/bin/python3.13
 WORKDIR /app
