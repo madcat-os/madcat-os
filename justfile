@@ -84,7 +84,7 @@ check: lint test
 tools:
     uv run madcat mcp list
 
-# Call one tool locally: just call ping '{}'
+# Call one tool locally: just call whoami '{}'
 call name args='{}':
     uv run madcat mcp call {{name}} '{{args}}'
 

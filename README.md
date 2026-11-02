@@ -7,7 +7,7 @@ MADCAT MCP server: OAuth-first, every user on their own database.
   Postgres + pgvector database.
 - Over **stdio**, and with `madcat mcp call`, calls run as one local user configured on the machine.
 
-Tools: `ping`, `server_info`, `whoami`, and EEMS memory: `memory_store`, `memory_recall`,
+Tools: `whoami` and EEMS memory: `memory_store`, `memory_recall`,
 `memory_get`, `memory_forget`, `memory_classify`, `memory_list`, `memory_link`, `memory_graph`.
 
 ## Quick start
