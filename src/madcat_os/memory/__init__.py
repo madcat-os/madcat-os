@@ -1,16 +1,17 @@
-"""EEMS memory: Postgres + pgvector store with hybrid recall, shared with the Rust madcat."""
+"""EEMS memory: hybrid-recall store over each user's own database."""
 
 from madcat_os.memory.embed import Embedder, EmbeddingError, OllamaEmbedder, OpenAIEmbedder, create_embedder
-from madcat_os.memory.store import PgStore, StoreError, default_store, traverse
+from madcat_os.memory.store import CLASSIFICATIONS, RELATIONS, MemoryStore, StoreError, traverse
 
 __all__ = [
+    "CLASSIFICATIONS",
+    "RELATIONS",
     "Embedder",
     "EmbeddingError",
+    "MemoryStore",
     "OllamaEmbedder",
     "OpenAIEmbedder",
-    "PgStore",
     "StoreError",
     "create_embedder",
-    "default_store",
     "traverse",
 ]

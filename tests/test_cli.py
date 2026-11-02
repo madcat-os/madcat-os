@@ -8,22 +8,28 @@ runner = CliRunner()
 
 def test_version():
     r = runner.invoke(app, ["--version"])
-    assert r.exit_code == 0
-    assert __version__ in r.output
+    assert r.exit_code == 0 and __version__ in r.stdout
 
 
-def test_list_has_ping():
+def test_list():
     r = runner.invoke(app, ["mcp", "list"])
     assert r.exit_code == 0
-    assert "ping" in r.output
+    for name in ("ping", "whoami", "memory_recall", "memory_graph"):
+        assert name in r.stdout
 
 
-def test_call_ping():
-    r = runner.invoke(app, ["mcp", "call", "ping"])
-    assert r.exit_code == 0
-    assert "pong" in r.output
+def test_call_ping_and_whoami_run_as_local():
+    assert "pong" in runner.invoke(app, ["mcp", "call", "ping"]).stdout
+    r = runner.invoke(app, ["mcp", "call", "whoami"])
+    assert r.exit_code == 0 and '"local"' in r.stdout
 
 
-def test_call_bad_json():
-    r = runner.invoke(app, ["mcp", "call", "ping", "{nope"])
-    assert r.exit_code == 2
+def test_memory_without_local_database_fails():
+    r = runner.invoke(app, ["mcp", "call", "memory_list"])
+    assert r.exit_code == 1 and "MADCAT_LOCAL_DB_URL" in r.stdout
+
+
+def test_bad_json_and_http_without_oauth():
+    assert runner.invoke(app, ["mcp", "call", "ping", "{nope"]).exit_code == 2
+    r = runner.invoke(app, ["mcp", "serve", "--transport", "http"])
+    assert r.exit_code == 2 and "HTTP needs OAuth" in r.stderr

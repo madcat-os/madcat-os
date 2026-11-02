@@ -1,7 +1,7 @@
 """Tool registry.
 
-Each module exposes ``register(mcp: MCPServer) -> None`` and decorates its handlers with
-``@mcp.tool()``. Add a module here and it ships in every transport and in ``madcat mcp list``.
+Each module exposes ``register(mcp: MCPServer) -> None``. Tools that touch user data resolve the
+caller through ``tools._run`` and never take identity from their arguments.
 """
 
 from __future__ import annotations

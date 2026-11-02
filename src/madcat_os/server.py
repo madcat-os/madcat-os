@@ -1,38 +1,71 @@
 """MCPServer construction and the two transports.
 
-``build_server()`` is the single place the tool registry meets the MCP server; the CLI,
-the stdio entrypoint and the HTTP app all go through it.
+HTTP is OAuth-only: the SDK's bearer middleware checks every ``/mcp`` request with
+``auth.IntrospectionVerifier``, answers 401/403 with ``WWW-Authenticate … resource_metadata=``, and
+serves RFC 9728 metadata at ``/.well-known/oauth-protected-resource/mcp``. This module adds the
+origin-level discovery documents some clients probe instead, and ``/health``. stdio has no auth
+and runs every call as the local user.
 """
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable
+import os
+import signal
+import time
 
+import httpx
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from madcat_os import __version__
+from madcat_os.auth import IntrospectionVerifier
 from madcat_os.config import SERVER_NAME, Settings, settings
 from madcat_os.tools import register_all
+from madcat_os.users import enable_local_user
 
 log = logging.getLogger("madcat_os")
 
-INSTRUCTIONS = "MADCAT MCP server. Call server_info at session start for identity."
+INSTRUCTIONS = (
+    "MADCAT MCP server. Every tool runs as the signed-in account against that account's own memory "
+    "database; call whoami to see which account that is."
+)
+SCOPES = ["mcp"]
 LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+AS_METADATA_TTL = 300.0
+CORS = {"Access-Control-Allow-Origin": "*"}
 
 
-def build_server(cfg: Settings | None = None) -> MCPServer:
+def build_server(cfg: Settings | None = None, *, oauth: bool = False, transport=None) -> MCPServer:
+    """The server with every tool registered. ``oauth`` wires madcat-web token checks (HTTP);
+    without it there is no auth layer (stdio, CLI). ``transport`` is for tests (fake madcat-web)."""
     cfg = cfg or settings()
+    kwargs: dict = {}
+    if oauth:
+        if not cfg.oauth_configured:
+            raise ValueError(
+                "HTTP needs OAuth: set MADCAT_PUBLIC_URL, MADCAT_OAUTH_ISSUER and "
+                "MADCAT_OAUTH_INTROSPECT_SECRET (or [mcp] public_url, oauth_issuer, oauth_introspect_secret)"
+            )
+        kwargs["token_verifier"] = IntrospectionVerifier(cfg, transport=transport)
+        kwargs["auth"] = AuthSettings(
+            issuer_url=cfg.oauth_issuer,
+            resource_server_url=cfg.resource_url,
+            required_scopes=SCOPES,
+            # The verifier checks the audience itself: madcat-web only sets aud when the client
+            # sent a resource parameter.
+            validate_token_resource=False,
+        )
     mcp = MCPServer(
         SERVER_NAME,
         version=__version__,
         instructions=INSTRUCTIONS,
         log_level=cfg.log_level.upper(),  # type: ignore[arg-type]
+        **kwargs,
     )
     register_all(mcp)
 
@@ -40,24 +73,43 @@ def build_server(cfg: Settings | None = None) -> MCPServer:
     async def health(_: Request) -> Response:
         return JSONResponse({"ok": True, "server": SERVER_NAME, "version": __version__})
 
+    if oauth:
+        _discovery_routes(mcp, cfg, transport)
     return mcp
 
 
-class BearerAuth(BaseHTTPMiddleware):
-    """Static-token guard for the HTTP transport. Health stays open."""
+def _discovery_routes(mcp: MCPServer, cfg: Settings, transport) -> None:
+    issuer = (cfg.oauth_issuer or "").rstrip("/")
+    resource_doc = {
+        "resource": cfg.resource_url,
+        "authorization_servers": [issuer],
+        "scopes_supported": SCOPES,
+        "bearer_methods_supported": ["header"],
+        "resource_name": "MADCAT MCP",
+    }
+    cache: dict = {}
 
-    def __init__(self, app, token: str) -> None:
-        super().__init__(app)
-        self.token = token
+    @mcp.custom_route("/.well-known/oauth-protected-resource", methods=["GET"])
+    async def protected_resource(_: Request) -> Response:
+        return JSONResponse(resource_doc, headers=CORS)
 
-    async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
-        if request.url.path == "/health":
-            return await call_next(request)
-        if request.headers.get("authorization", "") != f"Bearer {self.token}":
-            return JSONResponse({"error": "unauthorized"}, status_code=401)
-        return await call_next(request)
+    async def authorization_server(_: Request) -> Response:
+        """The issuer's RFC 8414 metadata, for clients that look for it on this origin."""
+        if cache.get("expires", 0) < time.time():
+            try:
+                async with httpx.AsyncClient(timeout=10.0, transport=transport) as client:
+                    r = await client.get(f"{issuer}/.well-known/oauth-authorization-server")
+                r.raise_for_status()
+                cache.update(doc=r.json(), expires=time.time() + AS_METADATA_TTL)
+            except (httpx.HTTPError, ValueError) as e:
+                log.warning("authorization server metadata unavailable: %s", e)
+                return JSONResponse(
+                    {"error": "authorization server metadata unavailable"}, status_code=502, headers=CORS
+                )
+        return JSONResponse(cache["doc"], headers=CORS)
+
+    for path in ("/.well-known/oauth-authorization-server", "/.well-known/oauth-authorization-server/mcp"):
+        mcp.custom_route(path, methods=["GET"])(authorization_server)
 
 
 def transport_security(cfg: Settings) -> TransportSecuritySettings:
@@ -73,24 +125,23 @@ def transport_security(cfg: Settings) -> TransportSecuritySettings:
 
 def build_http_app(mcp: MCPServer, cfg: Settings | None = None) -> Starlette:
     cfg = cfg or settings()
-    app = mcp.streamable_http_app(
-        streamable_http_path="/mcp",
-        host=cfg.host,
-        transport_security=transport_security(cfg),
+    return mcp.streamable_http_app(
+        streamable_http_path="/mcp", host=cfg.host, transport_security=transport_security(cfg)
     )
-    if cfg.token:
-        app.add_middleware(BearerAuth, token=cfg.token)
-    else:
-        log.warning("HTTP transport without a token: anyone who can reach the port can call tools")
-    return app
 
 
-def serve_stdio(mcp: MCPServer) -> None:
+def serve_stdio(cfg: Settings | None = None) -> None:
+    enable_local_user()
+    mcp = build_server(cfg)
+    # The stdio reader blocks in a thread, so asyncio's SIGINT cancellation would wait for stdin
+    # forever; a client stopping the server with SIGINT expects it gone.
+    signal.signal(signal.SIGINT, lambda *_: os._exit(130))
     mcp.run(transport="stdio")
 
 
-def serve_http(mcp: MCPServer, cfg: Settings | None = None) -> None:
+def serve_http(cfg: Settings | None = None) -> None:
     import uvicorn
 
     cfg = cfg or settings()
-    uvicorn.run(build_http_app(mcp, cfg), host=cfg.host, port=cfg.port, log_level=cfg.log_level)
+    app = build_http_app(build_server(cfg, oauth=True), cfg)
+    uvicorn.run(app, host=cfg.host, port=cfg.port, log_level=cfg.log_level)

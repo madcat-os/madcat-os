@@ -92,7 +92,7 @@ call name args='{}':
 stdio:
     uv run madcat mcp serve
 
-# Serve over HTTP on 127.0.0.1:4097 (set MADCAT_MCP_TOKEN)
+# Serve over HTTP on 127.0.0.1:4097 (needs MADCAT_PUBLIC_URL, MADCAT_OAUTH_ISSUER, MADCAT_OAUTH_INTROSPECT_SECRET)
 http:
     uv run madcat mcp serve --transport http
 

@@ -1,4 +1,4 @@
-"""MADCAT MCP — server and command line."""
+"""MADCAT MCP server: OAuth-first, every user on their own database."""
 
 from importlib.metadata import PackageNotFoundError, version
 
