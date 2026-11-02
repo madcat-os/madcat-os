@@ -1,7 +1,11 @@
+import asyncio
+
 from typer.testing import CliRunner
 
 from madcat_os import __version__
 from madcat_os.cli import app
+from madcat_os.instructions import INSTRUCTIONS
+from madcat_os.server import build_server
 
 runner = CliRunner()
 
@@ -21,6 +25,11 @@ def test_list():
 def test_list_omits_removed_tools():
     r = runner.invoke(app, ["mcp", "list"])
     assert all(name not in r.stdout for name in ("ping", "server_info", "memory_list"))
+
+
+def test_instructions_name_every_tool():
+    tools = asyncio.run(build_server().list_tools())
+    assert tools and all(f"- {t.name}: " in INSTRUCTIONS for t in tools)
 
 
 def test_call_whoami_runs_as_local():

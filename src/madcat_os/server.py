@@ -25,15 +25,12 @@ from starlette.responses import JSONResponse, Response
 from madcat_os import __version__
 from madcat_os.auth import IntrospectionVerifier
 from madcat_os.config import SERVER_NAME, Settings, settings
+from madcat_os.instructions import INSTRUCTIONS
 from madcat_os.tools import register_all
 from madcat_os.users import enable_local_user
 
 log = logging.getLogger("madcat_os")
 
-INSTRUCTIONS = (
-    "MADCAT MCP server. Every tool runs as the signed-in account against that account's own memory "
-    "database; call whoami to see which account that is."
-)
 SCOPES = ["mcp"]
 LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 AS_METADATA_TTL = 300.0
