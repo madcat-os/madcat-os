@@ -18,9 +18,9 @@ def test_list():
         assert name in r.stdout
 
 
-def test_list_has_no_ping_or_server_info():
+def test_list_omits_removed_tools():
     r = runner.invoke(app, ["mcp", "list"])
-    assert "ping" not in r.stdout and "server_info" not in r.stdout
+    assert all(name not in r.stdout for name in ("ping", "server_info", "memory_list"))
 
 
 def test_call_whoami_runs_as_local():
@@ -29,7 +29,7 @@ def test_call_whoami_runs_as_local():
 
 
 def test_memory_without_local_database_fails():
-    r = runner.invoke(app, ["mcp", "call", "memory_list"])
+    r = runner.invoke(app, ["mcp", "call", "memory_get", '{"ids": []}'])
     assert r.exit_code == 1 and "MADCAT_LOCAL_DB_URL" in r.stdout
 
 

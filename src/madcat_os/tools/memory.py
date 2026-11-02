@@ -1,4 +1,4 @@
-"""EEMS memory tools: store, recall, get, forget, classify, list, link, graph.
+"""EEMS memory tools: store, recall, get, forget, classify, link, graph.
 
 Each runs against the calling user's own database. Names and arguments match the Rust madcat
 tools; v2 enforces the rules Rust only described (see ``memory/store.py``).
@@ -72,12 +72,6 @@ def register(mcp: MCPServer) -> None:
         ] = None,
     ) -> CallToolResult:
         return await run_memory(lambda s: s.classify(id, classification or "core") or {"classified": True})
-
-    @mcp.tool(name="memory_list", description="List memory subjects with entry counts.")
-    async def list_subjects(
-        namespace: Annotated[str | None, Field(description="Filter by namespace")] = None,
-    ) -> CallToolResult:
-        return await run_memory(lambda s: s.list_subjects(namespace))
 
     @mcp.tool(
         name="memory_link",

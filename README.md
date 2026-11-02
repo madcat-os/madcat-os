@@ -8,7 +8,7 @@ MADCAT MCP server: OAuth-first, every user on their own database.
 - Over **stdio**, and with `madcat mcp call`, calls run as one local user configured on the machine.
 
 Tools: `whoami` and EEMS memory: `memory_store`, `memory_recall`,
-`memory_get`, `memory_forget`, `memory_classify`, `memory_list`, `memory_link`, `memory_graph`.
+`memory_get`, `memory_forget`, `memory_classify`, `memory_link`, `memory_graph`.
 
 ## Quick start
 
@@ -16,7 +16,7 @@ Tools: `whoami` and EEMS memory: `memory_store`, `memory_recall`,
 uv sync
 uv run madcat status
 uv run madcat mcp list
-MADCAT_LOCAL_DB_URL=postgres://me@localhost/my_eems uv run madcat mcp call memory_list
+MADCAT_LOCAL_DB_URL=postgres://me@localhost/my_eems uv run madcat mcp call memory_recall '{"query": "coffee"}'
 ```
 
 ## HTTP with OAuth

@@ -88,7 +88,6 @@ def test_roundtrip(store):
     assert memory["confidence"] == 0.8999999761581421
     assert memory["classification"] == "standard" and memory["metadata"] == {}
     assert [m["id"] for m in store.get([cat, "nope", fox, cat])] == [cat, fox]
-    assert store.list_subjects() == [{"count": 1, "subject": "test.cat"}, {"count": 1, "subject": "test.fox"}]
 
     store.link(cat, fox, "related_to", 0.5)
     nodes = store.graph(fox, 2)

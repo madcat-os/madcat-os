@@ -238,15 +238,6 @@ class MemoryStore:
         found = {r["id"]: _memory(r) for r in rows}
         return [found[i] for i in dict.fromkeys(ids) if i in found]
 
-    def list_subjects(self, namespace: str | None = None) -> list[dict]:
-        with self.pool.connection() as conn:
-            rows = conn.execute(
-                "SELECT subject, COUNT(*)::bigint AS count FROM memories "
-                "WHERE (%s::text IS NULL OR namespace = %s) GROUP BY subject ORDER BY count DESC, subject",
-                (namespace, namespace),
-            ).fetchall()
-        return [{"subject": r["subject"], "count": r["count"]} for r in rows]
-
     # ── Change ──────────────────────────────────────────────
 
     def forget(self, memory_id: str) -> bool:

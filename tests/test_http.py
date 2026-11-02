@@ -107,6 +107,6 @@ async def test_tools_run_as_the_token_user():
 
 async def test_account_without_database_gets_a_tool_error():
     async with client() as c:
-        result = await call_tool(c, "no-db", "memory_list")
+        result = await call_tool(c, "no-db", "memory_get", {"ids": []})
     assert result["isError"] is True
     assert json.loads(result["content"][0]["text"]) == {"error": "no database provisioned for this account"}
