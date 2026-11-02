@@ -2,8 +2,10 @@
 # madcat-os — MADCAT MCP server (`madcat mcp serve --transport http`) on :4097.
 # Built by Kamal on forge (amd64); see config/deploy.yml.
 
-FROM ghcr.io/astral-sh/uv:0.9-python3.13-bookworm-slim AS build
-ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
+FROM python:3.13-slim-bookworm AS build
+COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /usr/local/bin/uv
+# The venv must point at /usr/local/bin/python3.13, which the runtime image has too.
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never UV_PYTHON=/usr/local/bin/python3.13
 WORKDIR /app
 # Dependencies first, from the lockfile only, so code changes reuse this layer.
 RUN --mount=type=cache,target=/root/.cache/uv \
